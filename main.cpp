@@ -22,71 +22,6 @@ int randNumber (int start, int end) {
 	return random_int;
 }
 
-bool isGeneInSection(
-    vector<size_t> _genes,
-    size_t gene,
-    size_t iSectionStart,
-    size_t iSectionEnd)
-{
-    for (size_t iGene = iSectionStart; iGene <= iSectionEnd; iGene++)
-        if (gene == _genes[iGene])
-            return true;
-
-    return false;
-}
-
-
- vector<size_t> orderCrossover_OX(
-    const Individual& dna1,
-    const Individual& dna2)
-{
-    size_t iSecStart = 0;
-    size_t iSecEnd = 0;
-    
-    vector<size_t> _genes;
-
-    while (iSecStart >= iSecEnd)
-    {
-        iSecStart = randNumber(0, CITY_SIZE - 1);
-        iSecEnd   = randNumber(0, CITY_SIZE - 1);
-    }
-    
-    // Copy the section of dna1 to this dna.
-    vector<size_t> dna1_genes = dna1.getGenesValues();
-    for (size_t iGene = iSecStart; iGene <= iSecEnd; iGene++)
-        _genes[iGene] = dna1_genes[iGene];
-
-    const size_t sectionSize = iSecEnd - iSecStart;
-
-    vector<size_t> dna2_genes = dna2.getGenesValues();
-    vector<size_t> dnaDifference;
-    dnaDifference.reserve(dna2_genes.size() - sectionSize);
-
-    if (iSecEnd + 1 <= dna2_genes.size() - 1)
-        for (size_t iGene = iSecEnd + 1; iGene < dna2_genes.size(); iGene++)
-            if (!isGeneInSection(_genes, dna2_genes[iGene], iSecStart, iSecEnd))
-                dnaDifference.push_back(dna2_genes[iGene]);
-
-    for (size_t iGene = 0; iGene <= iSecEnd; iGene++)
-        if (!isGeneInSection(_genes, dna2_genes[iGene], iSecStart, iSecEnd))
-            dnaDifference.push_back(dna2_genes[iGene]);
-    
-    size_t i = 0;
-
-    if (iSecEnd + 1 <= dna2_genes.size() - 1)
-        i = iSecEnd + 1;
-
-    for (size_t iGene = 0; iGene < dnaDifference.size(); iGene++)
-    {
-        _genes[i] = dnaDifference[iGene];
-        i++;
-        if (i > _genes.size() - 1)
-            i = 0;
-    }
-
-    return _genes;
-}
-
 
 void burbleSort(vector<Individual>& population) {
     for (size_t i = 0; i < population.size(); i++) {
@@ -98,6 +33,14 @@ void burbleSort(vector<Individual>& population) {
             }
         }        
     }    
+}
+
+bool isValueinRange(vector<size_t> vec, size_t value, size_t start, size_t end) {
+    for (size_t i = start; i <= end; i++)
+        if (vec[i] == value)
+            return true;
+
+    return false;
 }
 
 int getBestFitnessIndex(const  vector<Individual>& population) {
@@ -120,8 +63,8 @@ Individual tournamentSelection(const vector<Individual>& population, int k) {
     int bestFitness = select[0];
     for (int i = 1; i < k-1; i++) {
         //el menor fitness es el mejor
-        if(population[bestFitness].getFitness() > population[i].getFitness())
-            bestFitness = i;
+        if(population[bestFitness].getFitness() > population[select[i]].getFitness())
+            bestFitness = select[i];
     }
     
     return population[bestFitness];
@@ -129,6 +72,73 @@ Individual tournamentSelection(const vector<Individual>& population, int k) {
 
 void singlePointCrossovers(const Individual& parent1, const Individual& parent2) {
 
+}
+
+ void orderCrossover_OX(Individual& parent1, Individual& parent2) {
+    int i_start = 0;
+    int i_end = 0;
+    
+    do {
+        i_start = randNumber(0, CITY_SIZE - 1);
+        i_end   = randNumber(0, CITY_SIZE - 1);
+    }while(i_start == i_end);
+    
+    if (i_start > i_end) {
+        const int temp = i_start;
+        i_start = i_end;
+        i_end = temp;
+    }
+
+    // los nuevos genes con el cruzamiento
+    vector<size_t> new_genes1;
+    vector<size_t> new_genes2;
+    new_genes1.resize(CITY_SIZE);
+    new_genes2.resize(CITY_SIZE);
+
+    // copiamos la seccion del padre 1
+    for (int i = i_start; i <= i_end; i++)
+        new_genes1[i] = parent1._genes[i];
+    // copiamos la seccion del padre 2
+    for (int i = i_start; i <= i_end; i++) 
+        new_genes2[i] = parent2._genes[i];
+
+    // copiamos la primera seccion
+    int index = 0;
+    for (int i = 0; i < CITY_SIZE; i++)  {
+        if (i >= i_start && i <= i_end) {
+            new_genes1[i] = parent1._genes[i];
+            continue;
+        }
+        if (!isValueinRange(new_genes1, parent2._genes[index], i_start, i_end)) {
+            new_genes1[i] = parent2._genes[index];
+            index++;
+        } 
+        else {
+            index++;
+            i--;
+        }
+
+    }
+
+    index = 0;
+    for (int i = 0; i < CITY_SIZE; i++)  {
+        if (i >= i_start && i <= i_end) {
+            new_genes2[i] = parent2._genes[i];
+            continue;
+        }
+        if (!isValueinRange(new_genes2, parent1._genes[index], i_start, i_end)) {
+            new_genes2[i] = parent1._genes[index];
+            index++;
+        } 
+        else {
+            index++;
+            i--;
+        }
+
+    }
+            
+    parent1._genes = new_genes1;
+    parent2._genes = new_genes2;
 }
 
 // Individual pmxCrossovers(const Individual& parent1, const Individual& parent2) {
@@ -293,7 +303,7 @@ int main () {
 	}
 
     int generation = 0;
-    while(generation < 50) {
+    while(generation < 30) {
         burbleSort(population);
         cout<< "Generation: " << generation + 1 << endl;
         cout<< "Routes: "<< population[0].getGenes() <<"\t";
@@ -315,18 +325,33 @@ int main () {
             //     else
             //         i_parent--;            
             // }
-            Individual winner = tournamentSelection(population, 2);
-            winner.calcFitness();
+            Individual winner1 = tournamentSelection(population, 2);
+            Individual winner2 = tournamentSelection(population, 2);
+            
+            orderCrossover_OX(winner1, winner2);
+
+            winner1.swapMutation();
+            winner2.swapMutation();
+
+            winner1.calcFitness();
+            winner2.calcFitness();
+
+            new_generation.push_back(winner1);
+            new_generation.push_back(winner2);
+
+            //antes
             // Individual new_individual = population[i].swapGenesOnePoint(population[i_parent]);
-            Individual new_individual = population[i].swapGenesOnePoint(winner);
+            // Individual new_individual = population[i].swapGenesOnePoint(winner1);
             // Individual new_individual(orderCrossover_OX(winner, population[i]));
-            new_individual.calcFitness();
-            new_individual.swapMutation();
-            new_generation.push_back(new_individual);
+            // new_individual.calcFitness();
+            // new_individual.swapMutation();
+            // new_generation.push_back(new_individual);
         }
         population = new_generation;
         generation++;
     }
 
+
+// orderCrossover_OX(parent1, parent2);
     return 0;
 }

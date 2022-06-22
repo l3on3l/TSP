@@ -25,6 +25,8 @@ class Individual {
         Individual mate(const Individual& parent);        
         void mutateGenes(double probability); //falta
         void initRandGenes();
+        //friends
+        friend void orderCrossover_OX(Individual& parent1, Individual& parent2);
     private:
         inline double calcDistance(double,double,double,double);
         inline double calcRouteDistance();
