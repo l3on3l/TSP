@@ -3,9 +3,7 @@
 // #include "individual.hpp"
 #include "ga.hpp"
 
-//defines
-#define CITY_SIZE 10
-#define POP_SIZE 5
+#define POP_SIZE 50
 
 //variables
 struct Point {
@@ -13,4 +11,4 @@ struct Point {
 };
 
 // Los indices 0,1,3... son los genes
-struct Point map[CITY_SIZE];
+// struct Point map[CITY_SIZE];
