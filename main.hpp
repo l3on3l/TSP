@@ -3,7 +3,7 @@
 // #include "individual.hpp"
 #include "ga.hpp"
 
-#define POP_SIZE 50
+#define POP_SIZE 100
 
 //variables
 struct Point {

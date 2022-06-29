@@ -25,6 +25,7 @@ class Individual {
         Individual mate(const Individual& parent);        
         void mutateGenes(double probability); //falta
         void initRandGenes();
+        bool operator<(Individual &p);
         //friends
         friend void orderCrossover_OX(Individual& parent1, Individual& parent2);
     private:

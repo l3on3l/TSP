@@ -1,3 +1,4 @@
+/* C++ library*/
 #include <iostream>
 using std::cout;
 using std::endl;
@@ -18,6 +19,11 @@ using std::ifstream;
 #include <numeric>
 #include <algorithm>
 
+/* C library*/
+#include <stdlib.h>
+#include <omp.h>
+
+/* TSP data*/
 #include "main.hpp"
 
 // struct Point map[CITY_SIZE];
@@ -27,7 +33,7 @@ vector<Point> map;
 
 void readFile() {
     string line;
-    ifstream myfile ("data/dj38.tsp");
+    ifstream myfile ("data/wi29.tsp");
 
     int value;
     if (myfile.is_open()) {
@@ -261,6 +267,10 @@ float Individual::getFitness() const {
     return _fitness;
 }
 
+bool Individual::operator<(Individual &p) {
+    return _fitness < p.getFitness();
+}
+
 Individual Individual::swapGenesOnePoint(const Individual& parent) {
     size_t half_pop = map.size();    
     if (half_pop % 2 != 0)
@@ -345,16 +355,8 @@ inline double Individual::calcRouteDistance() {
 
 /**************** MAIN ********************/
 
-int main () {
-
-    srand(time(NULL));
-
-    //Coordenadas de prueba
-    // int pos_x[] = {0,2,3,5,6,7,4,11,9,2};
-    // int pos_y[] = {1,5,1,7,9,3,6,4,0,8};
-    //Inicializamos nuestro mapa de coordenadas
-    readFile();
-    
+void tsp() {
+    srand(time(NULL));    
     // creamos la poblacion inicial de manera aleatoria
     vector<Individual> population;
 	for(int i = 0;i<POP_SIZE;i++) {
@@ -362,31 +364,18 @@ int main () {
         population[i].calcFitness();
 	}
     
-  
-    // for(int i = 0;i<POP_SIZE;i++) {
-    //     cout << "["<<i<<"]: "<< population[i].getGenes()<< " F: " << population[i].getFitness() <<endl;
-	// }
-    // cout << "10% " << (10*POP_SIZE)/100 << endl;
-    // cout << "90% " << (80*POP_SIZE)/100 << endl;
-    int generation = 0;
-    float best_fitness;
-    // int count = 0;
-    while(generation <= 10000) {
-        burbleSort(population);
-        if (generation == 0)
-            float best_fitness = population[0].getFitness();
-
-        if (generation % 1000 == 0) {
-            cout<< "Generation: " << generation << endl;
-            cout<< "Routes: "<< population[0].getGenes() <<"\t";
-            cout<< "Fitness: "<< population[0].getFitness() << endl << endl;
-            // if (best_fitness == population[0].getFitness())
-            //     count++;
-            // if (count == 2 && best_fitness != population[0].getFitness()) {
-            //     best_fitness = population[0].getFitness();
-            //     count = 0;
-            // }
-        }
+    // int generation = 0;
+    bool is_init = true;
+    
+    // #pragma omp for
+    for (int generation = 0; generation <= 1000; generation++) {
+        // burbleSort(population);
+        std::sort(population.begin(), population.end());
+        //se elimina los peores
+        if (!is_init)
+            population.resize(POP_SIZE);
+        else
+            is_init = false;
 
         vector<Individual> new_generation;
 
@@ -395,17 +384,7 @@ int main () {
         for (int i = 0; i < gen_size; i++)
             new_generation.push_back(population[i]);
 
-        // gen_size = (90*POP_SIZE)/100;
         for(int i = gen_size;i<POP_SIZE;i+=2) {
-            // Individual winner1, winner2;
-            // if (count == 2) {
-            //     winner1 = tournamentSelection(population, 5, int((20*POP_SIZE)/100));
-            //     winner2 = tournamentSelection(population, 5, int((15*POP_SIZE)/100));
-            // }
-            // else {
-            //     winner1 = tournamentSelection(population, 5, int((85*POP_SIZE)/100));
-            //     winner2 = tournamentSelection(population, 5, int((75*POP_SIZE)/100));
-            // }
             
             Individual winner1 = tournamentSelection(population, 5, int((85*POP_SIZE)/100));
             Individual winner2 = tournamentSelection(population, 5, int((85*POP_SIZE)/100));
@@ -419,11 +398,84 @@ int main () {
             winner2.calcFitness();
 
             new_generation.push_back(winner1);
-            new_generation.push_back(winner2);
+            new_generation.push_back(winner2);            
         }
         population = new_generation;
-        generation++;
     }
+    // int my_rank=omp_get_thread_num();
+    int my_rank = 1;
+    cout << "Thread: " << my_rank << " Routes: " << population[0].getGenes() << " Fitness: " << population[0].getFitness() << endl; 
+}
 
-    return 0;
+void tsp2() {
+    srand(time(NULL));
+
+    readFile();
+    
+    // creamos la poblacion inicial de manera aleatoria
+    vector<Individual> population;
+	for(int i = 0;i<POP_SIZE;i++) {
+		population.push_back(Individual());
+        population[i].calcFitness();
+	}
+    
+    int generation = 0;
+    bool is_init = true;
+    
+    while(generation <= 10000) {
+        burbleSort(population);
+        //se elimina los peores
+        if (!is_init)
+            population.resize(POP_SIZE);
+        else 
+            is_init = false;
+        
+        if (generation % 1000 == 0) {
+            cout<< "Generation: " << generation << endl;
+            cout<< "Routes: "<< population[0].getGenes() <<"\t";
+            cout<< "Fitness: "<< population[0].getFitness() << endl << endl;
+        }
+
+        // seleccionamos
+        vector<Individual> selection;
+        vector<Individual> new_generation;
+        for (int i = 0; i < POP_SIZE; i++) {
+            Individual winner = tournamentSelection(population, 5, POP_SIZE);
+            selection.push_back(winner);
+            // cada ganador seran los padres para el cruze
+            new_generation.push_back(winner);
+        }
+    
+        for(int i = 0;i<POP_SIZE;i+=2) {
+            int index = randNumber(0, map.size() - 1);
+            orderCrossover_OX(selection[i], selection[index]);
+            // calculamos el fitness de los hijos
+            selection[i].calcFitness();
+            selection[index].calcFitness();
+            // cargamos los hijos
+            new_generation.push_back(selection[i]);
+            new_generation.push_back(selection[index]);
+        }
+
+        for (size_t i = 0; i < new_generation.size(); i++) {
+            int prop = rand() % 2;
+            if(prop)
+                new_generation[i].swapMutation();
+        }
+        
+        population = new_generation;
+        generation++;
+    }    
+}
+
+int compare (const void * a, const void * b) {
+  return ( *(int*)a - *(int*)b );
+}
+
+int main (int argc, char *argv[]) {
+    readFile();
+    double t0 = omp_get_wtime();
+    tsp();
+    double t1 = omp_get_wtime();
+    cout << "\nTime: " << t1-t0 << endl;
 }
