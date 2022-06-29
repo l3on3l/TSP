@@ -28,7 +28,9 @@ class Individual {
         bool operator<(Individual &p);
         //friends
         friend void orderCrossover_OX(Individual& parent1, Individual& parent2);
+        void orderCrossover_PX(const Individual& parent1, const Individual& parent2);
     private:
         inline double calcDistance(double,double,double,double);
         inline double calcRouteDistance();
+        inline bool isGeneInSection( size_t gene, size_t iSectionStart, size_t iSectionEnd) const;
 };

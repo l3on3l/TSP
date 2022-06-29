@@ -1,9 +1,8 @@
 
 //class
-// #include "individual.hpp"
-#include "ga.hpp"
+#include "individual.hpp"
 
-#define POP_SIZE 100
+#define POP_SIZE 200
 
 //variables
 struct Point {

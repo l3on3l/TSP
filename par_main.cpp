@@ -28,12 +28,13 @@ using std::ifstream;
 
 // struct Point map[CITY_SIZE];
 vector<Point> map;
-
+int num_th = 4;
+int max_loop = 1000;
 /**************** UTILS ********************/
 
-void readFile() {
+void readFile(const char *str) {
     string line;
-    ifstream myfile ("data/wi29.tsp");
+    ifstream myfile (str);
 
     int value;
     if (myfile.is_open()) {
@@ -62,22 +63,13 @@ void readFile() {
             }
 
             res.push_back (s.substr (pos_start));
-            // for (int i = 0; i < value; i++) {
-            //     Point p;
-            //     p.x = std::stof(res[1]);
-            //     p.y = std::stof(res[2]);
-            //     map.push_back(p);
-            // }
+
             Point p;
             p.x = std::stof(res[1]);
             p.y = std::stof(res[2]);
             map.push_back(p);
             // cout << line << endl;
         }
-
-        // for (size_t i = 0; i < value; i++) {
-        //     cout << i <<") x: " << map[i].x << " y: " << map[i].y << endl;
-        // }
 
         myfile.close();
     }
@@ -88,19 +80,6 @@ size_t randNumber (size_t start, size_t end) {
 	size_t range = (end-start)+1;
 	size_t random_int = start+(rand()%range);
 	return random_int;
-}
-
-
-void burbleSort(vector<Individual>& population) {
-    for (size_t i = 0; i < population.size(); i++) {
-        for (size_t j = 0; j < population.size(); j++) {
-            if (population[i].getFitness() < population[j].getFitness()) {
-                Individual temp = population[i];
-                population[i] = population[j];
-                population[j] = temp;
-            }
-        }        
-    }    
 }
 
 bool isValueinRange(vector<size_t> vec, size_t value, size_t start, size_t end) {
@@ -138,9 +117,6 @@ Individual tournamentSelection(const vector<Individual>& population, int k, int 
     return population[bestFitness];
 }
 
-void singlePointCrossovers(const Individual& parent1, const Individual& parent2) {
-
-}
 
 void orderCrossover_OX(Individual& parent1, Individual& parent2) {
     size_t i_start = 0;
@@ -172,6 +148,7 @@ void orderCrossover_OX(Individual& parent1, Individual& parent2) {
 
     // se crea el hijo del padre1 con los genes del padre 2
     int index = 0;
+    
     for (size_t i = 0; i < map.size(); i++)  {
         if (i >= i_start && i <= i_end) {
             new_genes1[i] = parent1._genes[i];
@@ -210,11 +187,6 @@ void orderCrossover_OX(Individual& parent1, Individual& parent2) {
     parent2._genes = new_genes2;
 }
 
-// Individual pmxCrossovers(const Individual& parent1, const Individual& parent2) {
-//     int p1 = randNumber(0, CITY_SIZE - 1);
-//     int p2 = randNumber(0, CITY_SIZE - 1);
-//     int pm = (p1 + p2) / 2;
-// }
 
 /**************** CLASS INDIVIDUAL ********************/
 Individual::Individual() {
@@ -249,15 +221,12 @@ void Individual::calcFitness() {
 void Individual::swapMutation() {
    // Mutamos el individuo intercambiando dos de sus genes de
    // forma aleatoria
-
     size_t gene1, gene2;
-    do
-    {
+    do {
         gene1 = randNumber(0, map.size() - 1);
         gene2 = randNumber(0, map.size() - 1);
     } while (gene1 == gene2);
     
-  
     const int temp = _genes[gene1];
     _genes[gene1] = _genes[gene2];
     _genes[gene2] = temp;
@@ -335,7 +304,7 @@ inline double Individual::calcDistance( double x1, double y1, double x2, double 
 inline double Individual::calcRouteDistance() {
     //calcula la suma de todas las distancia entre las rutas sucesivas
     double total_length = 0.0;
-
+    // #pragma omp parallel for
     for (size_t i = 0; i < map.size() - 1; i++)
         total_length += calcDistance(
             map[_genes[i]].x,
@@ -343,7 +312,7 @@ inline double Individual::calcRouteDistance() {
             map[_genes[i + 1]].x,
             map[_genes[i + 1]].y );
     // agregamos la distancia entre el primero y el utlimo
-    total_length += calcDistance(
+    _fitness += calcDistance(
             map[_genes[map.size() - 1]].x,
             map[_genes[map.size() - 1]].y,
             map[_genes[0]].x,
@@ -352,10 +321,58 @@ inline double Individual::calcRouteDistance() {
     return total_length;
 }
 
+inline bool Individual::isGeneInSection( size_t gene, size_t iSectionStart, size_t iSectionEnd) const {
+    for (size_t iGene = iSectionStart; iGene <= iSectionEnd; iGene++)
+        if (gene == _genes[iGene])
+            return true;
+    return false;
+}
+
+void Individual::orderCrossover_PX( const Individual& parent1, const Individual& parent2)
+{
+    size_t iSecStart = 0;
+    size_t iSecEnd = 0;
+
+    while (iSecStart >= iSecEnd) {
+        iSecStart = randNumber(0, parent1._genes.size() - 1);
+        iSecEnd   = randNumber(0, parent1._genes.size() - 1);
+    }
+
+    
+    for (size_t iGene = iSecStart; iGene <= iSecEnd; iGene++)
+        _genes[iGene] = parent1._genes[iGene];
+
+    const size_t sectionSize = iSecEnd - iSecStart;
+
+    vector<size_t> dnaDifference;
+    dnaDifference.reserve(parent2._genes.size() - sectionSize);
+
+    if (iSecEnd + 1 <= parent2._genes.size() - 1)
+        for (size_t iGene = iSecEnd + 1; iGene < parent2._genes.size(); iGene++)
+            if (!isGeneInSection(parent2._genes[iGene], iSecStart, iSecEnd))
+                dnaDifference.push_back(parent2._genes[iGene]);
+
+    for (size_t iGene = 0; iGene <= iSecEnd; iGene++)
+        if (!isGeneInSection(parent2._genes[iGene], iSecStart, iSecEnd))
+            dnaDifference.push_back(parent2._genes[iGene]);
+
+    size_t i = 0;
+
+    if (iSecEnd + 1 <= parent2._genes.size() - 1)
+        i = iSecEnd + 1;
+
+    for (size_t iGene = 0; iGene < dnaDifference.size(); iGene++) {
+        _genes[i] = dnaDifference[iGene];
+        i++;
+        if (i > _genes.size() - 1)
+            i = 0;
+    }
+}
 
 /**************** MAIN ********************/
 
 void tsp() {
+    
     srand(time(NULL));    
     // creamos la poblacion inicial de manera aleatoria
     vector<Individual> population;
@@ -363,19 +380,9 @@ void tsp() {
 		population.push_back(Individual());
         population[i].calcFitness();
 	}
-    
-    // int generation = 0;
-    bool is_init = true;
-    
-    // #pragma omp for
-    for (int generation = 0; generation <= 1000; generation++) {
-        // burbleSort(population);
+    #pragma omp for
+    for (int generation = 0; generation <= max_loop; generation++) {
         std::sort(population.begin(), population.end());
-        //se elimina los peores
-        if (!is_init)
-            population.resize(POP_SIZE);
-        else
-            is_init = false;
 
         vector<Individual> new_generation;
 
@@ -383,7 +390,7 @@ void tsp() {
         if (gen_size == 0) gen_size++;
         for (int i = 0; i < gen_size; i++)
             new_generation.push_back(population[i]);
-
+    
         for(int i = gen_size;i<POP_SIZE;i+=2) {
             
             Individual winner1 = tournamentSelection(population, 5, int((85*POP_SIZE)/100));
@@ -402,16 +409,14 @@ void tsp() {
         }
         population = new_generation;
     }
-    // int my_rank=omp_get_thread_num();
-    int my_rank = 1;
+    int my_rank=omp_get_thread_num();
+    #pragma omp critical
     cout << "Thread: " << my_rank << " Routes: " << population[0].getGenes() << " Fitness: " << population[0].getFitness() << endl; 
 }
 
-void tsp2() {
-    srand(time(NULL));
-
-    readFile();
+void tspPX() {
     
+    srand(time(NULL));    
     // creamos la poblacion inicial de manera aleatoria
     vector<Individual> population;
 	for(int i = 0;i<POP_SIZE;i++) {
@@ -419,60 +424,53 @@ void tsp2() {
         population[i].calcFitness();
 	}
     
-    int generation = 0;
-    bool is_init = true;
-    
-    while(generation <= 10000) {
-        burbleSort(population);
-        //se elimina los peores
-        if (!is_init)
-            population.resize(POP_SIZE);
-        else 
-            is_init = false;
-        
-        if (generation % 1000 == 0) {
-            cout<< "Generation: " << generation << endl;
-            cout<< "Routes: "<< population[0].getGenes() <<"\t";
-            cout<< "Fitness: "<< population[0].getFitness() << endl << endl;
-        }
+    #pragma omp for
+    for (int generation = 0; generation < max_loop; generation++) {
+        std::sort(population.begin(), population.end());
 
-        // seleccionamos
-        vector<Individual> selection;
         vector<Individual> new_generation;
-        for (int i = 0; i < POP_SIZE; i++) {
-            Individual winner = tournamentSelection(population, 5, POP_SIZE);
-            selection.push_back(winner);
-            // cada ganador seran los padres para el cruze
-            new_generation.push_back(winner);
-        }
-    
-        for(int i = 0;i<POP_SIZE;i+=2) {
-            int index = randNumber(0, map.size() - 1);
-            orderCrossover_OX(selection[i], selection[index]);
-            // calculamos el fitness de los hijos
-            selection[i].calcFitness();
-            selection[index].calcFitness();
-            // cargamos los hijos
-            new_generation.push_back(selection[i]);
-            new_generation.push_back(selection[index]);
-        }
 
-        for (size_t i = 0; i < new_generation.size(); i++) {
-            int prop = rand() % 2;
-            if(prop)
-                new_generation[i].swapMutation();
-        }
+        int gen_size = (10*POP_SIZE)/100;
+        if (gen_size == 0) gen_size++;
+        for (int i = 0; i < gen_size; i++)
+            new_generation.push_back(population[i]);
         
+        for(int i = gen_size;i<POP_SIZE;i+=2) {
+            
+            Individual parent1 = tournamentSelection(population, 10, int((85*POP_SIZE)/100));
+            Individual parent2 = tournamentSelection(population, 10, int((85*POP_SIZE)/100));
+
+            // orderCrossover_OX(winner1, winner2);
+            Individual child1 = population[i];
+            child1.orderCrossover_PX(parent1, parent2);
+
+            Individual child2 = population[i];
+            child1.orderCrossover_PX(parent2, parent1);
+
+            child1.swapMutation();
+            child2.swapMutation();
+
+            child1.calcFitness();
+            child2.calcFitness();
+
+            new_generation.push_back(child1);
+            new_generation.push_back(child2);            
+        }
         population = new_generation;
-        generation++;
-    }    
+    }
+    int my_rank=omp_get_thread_num();
+    #pragma omp critical
+    cout << "Thread: " << my_rank << " Routes: " << population[0].getGenes() << " Fitness: " << population[0].getFitness() << endl; 
 }
 
-
 int main (int argc, char *argv[]) {
-    readFile();
+    readFile("data/wi29.tsp");
+    max_loop = 10000;
+
     double t0 = omp_get_wtime();
-    tsp();
+    omp_set_num_threads(8);
+    #pragma omp parallel
+    tspPX();
     double t1 = omp_get_wtime();
     cout << "\nTime: " << t1-t0 << endl;
 }
